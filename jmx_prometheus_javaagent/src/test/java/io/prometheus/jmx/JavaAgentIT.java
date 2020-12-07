@@ -28,6 +28,10 @@ import javax.net.ssl.X509TrustManager;
 import org.junit.Test;
 
 public class JavaAgentIT {
+
+    private static final String DEFAULT_JAVA_HOME_PATH = "/bin/java";
+    private static final String DEFAULT_JAVA_PATH = "java";
+
     private List<URL> getClassloaderUrls() {
         return getClassloaderUrls(getClass().getClassLoader());
     }
@@ -73,14 +77,8 @@ public class JavaAgentIT {
         bw.write("serverKeyStorePassword: ykOUaInleG/fqTPi\n");
         bw.close();
         final String javaagent = "-javaagent:" + buildDirectory + "/" + finalName + ".jar=" + port + ":" + config + "," + file.getAbsolutePath();
+        final String java = buildJavaPath(System.getenv("JAVA_HOME"));
 
-        final String javaHome = System.getenv("JAVA_HOME");
-        final String java;
-        if (javaHome != null && javaHome.equals("")) {
-            java = javaHome + "/bin/java";
-        } else {
-            java = "java";
-        }
 
         final Process app = new ProcessBuilder()
             .command(java, javaagent, "-cp", buildClasspath(), "io.prometheus.jmx.TestApplication")
@@ -120,6 +118,14 @@ public class JavaAgentIT {
 
             assertThat("Application did not exit cleanly", exitcode == 0);
         }
+    }
+
+    private String buildJavaPath(String javaHome) {
+        if (!(javaHome == null || javaHome.isEmpty())) {
+            return javaHome + DEFAULT_JAVA_HOME_PATH;
+        }
+
+        return DEFAULT_JAVA_PATH;
     }
 
     //trying to avoid the occurrence of any : in the windows path

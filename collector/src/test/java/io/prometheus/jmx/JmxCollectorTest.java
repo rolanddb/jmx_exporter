@@ -1,18 +1,19 @@
 package io.prometheus.jmx;
 
+import io.prometheus.client.Collector;
+import io.prometheus.client.CollectorRegistry;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
+
+import java.lang.management.ManagementFactory;
+import javax.management.MBeanServer;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
-
-import io.prometheus.client.Collector;
-import io.prometheus.client.CollectorRegistry;
-import java.lang.management.ManagementFactory;
-import javax.management.MBeanServer;
-import org.junit.Test;
-import org.junit.Before;
-import org.junit.BeforeClass;
-
 
 public class JmxCollectorTest {
 
@@ -31,6 +32,7 @@ public class JmxCollectorTest {
 
         TomcatServlet.registerBean(mbs);
         Bool.registerBean(mbs);
+        Camel.registerBean(mbs);
     }
 
     @Before
@@ -251,5 +253,35 @@ public class JmxCollectorTest {
       JmxCollector jc = new JmxCollector("---\nstartDelaySeconds: 1").register(registry);
       Thread.sleep(2000);
       assertEquals(1.0, registry.getSampleValue("boolean_Test_True", new String[]{}, new String[]{}), .001);
+    }
+
+    @Test
+    public void testCamelLastExchangFailureTimestamp() throws Exception{
+      String rulePattern =
+              "\n---\nrules:\n- pattern: 'org.apache.camel<context=([^,]+), type=routes, name=\"([^\"]+)\"><>LastExchangeFailureTimestamp'\n" +
+                      "  name: org.apache.camel.LastExchangeFailureTimestamp\n" +
+                      "  help: Exchanges Last Failure Timestamps\n" +
+                      "  type: UNTYPED\n" +
+                      "  labels:\n" +
+                      "    context: \"$1\"\n" +
+                      "    route: \"$2\"\n" +
+                      "    type: routes";
+      JmxCollector jc = new JmxCollector(rulePattern).register(registry);
+      Double actual = registry.getSampleValue("org_apache_camel_LastExchangeFailureTimestamp", new String[]{"context", "route", "type"}, new String[]{"my-camel-context", "my-route-name", "routes"});
+      assertEquals(Camel.EXPECTED_SECONDS, actual, 0);
+    }
+
+    @Test
+    public void testCachedBeansDisabled() throws Exception {
+        JmxCollector jc = new JmxCollector("\n---\nrules:\n- pattern: `.*`\n  name: foo\n  value: 1\n  valueFactor: 4".replace('`','"')).register(registry);
+        assertEquals(0.0, registry.getSampleValue("jmx_scrape_cached_beans", new String[]{}, new String[]{}), .001);
+        assertEquals(4.0, registry.getSampleValue("foo", new String[]{}, new String[]{}), .001);
+    }
+
+    @Test
+    public void testCachedBeansEnabled() throws Exception {
+        JmxCollector jc = new JmxCollector("\n---\nrules:\n- pattern: `.*`\n  name: foo\n  value: 1\n  valueFactor: 4\n  cache: true".replace('`','"')).register(registry);
+        assertTrue(registry.getSampleValue("jmx_scrape_cached_beans", new String[]{}, new String[]{}) > 0);
+        assertEquals(4.0, registry.getSampleValue("foo", new String[]{}, new String[]{}), .001);
     }
 }

@@ -149,22 +149,29 @@ class JmxScraper {
         final AttributeList attributes;
         try {
             attributes = beanConn.getAttributes(mbeanName, name2AttrInfo.keySet().toArray(new String[0]));
+            if (attributes == null) {
+                logScrape(mbeanName.toString(), "getAttributes Fail: attributes are null");
+                return;
+            }
         } catch (Exception e) {
             logScrape(mbeanName, name2AttrInfo.keySet(), "Fail: " + e);
             return;
         }
-        for (Attribute attribute : attributes.asList()) {
-            MBeanAttributeInfo attr = name2AttrInfo.get(attribute.getName());
-            logScrape(mbeanName, attr, "process");
-            processBeanValue(
-                    mbeanName.getDomain(),
-                    jmxMBeanPropertyCache.getKeyPropertyList(mbeanName),
-                    new LinkedList<String>(),
-                    attr.getName(),
-                    attr.getType(),
-                    attr.getDescription(),
-                    attribute.getValue()
-            );
+        for (Object attributeObj : attributes.asList()) {
+            if (Attribute.class.isInstance(attributeObj)) {
+                Attribute attribute = (Attribute)(attributeObj);
+                MBeanAttributeInfo attr = name2AttrInfo.get(attribute.getName());
+                logScrape(mbeanName, attr, "process");
+                processBeanValue(
+                        mbeanName.getDomain(),
+                        jmxMBeanPropertyCache.getKeyPropertyList(mbeanName),
+                        new LinkedList<String>(),
+                        attr.getName(),
+                        attr.getType(),
+                        attr.getDescription(),
+                        attribute.getValue()
+                );
+            }
         }
     }
 
@@ -186,7 +193,11 @@ class JmxScraper {
             Object value) {
         if (value == null) {
             logScrape(domain + beanProperties + attrName, "null");
-        } else if (value instanceof Number || value instanceof String || value instanceof Boolean) {
+        } else if (value instanceof Number || value instanceof String || value instanceof Boolean || value instanceof java.util.Date) {
+            if (value instanceof java.util.Date) {
+                attrType = "java.lang.Double";
+                value = ((java.util.Date) value).getTime() / 1000.0;
+            }
             logScrape(domain + beanProperties + attrName, value.toString());
             this.receiver.recordBean(
                     domain,

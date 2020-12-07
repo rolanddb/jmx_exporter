@@ -14,7 +14,7 @@ jobs:
           java-version: 1.8
       - name: Build with Maven
         run: mvn -B package --file pom.xml
-      - run: mkdir staging && cp jmx_prometheus_javaagent/*.jar staging && cp jmx_prometheus_httpserver/*.jar staging
+      - run: mkdir staging && cp jmx_prometheus_javaagent/target/*.jar staging && cp jmx_prometheus_httpserver/target/*.jar staging
       - uses: actions/upload-artifact@v2
         with:
           name: Package
